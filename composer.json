@@ -1,0 +1,16 @@
+{
+  "name": "vendasta/sso",
+  "description": "Vendasta SSO library for PHP",
+  "type": "library",
+  "require": {
+    "grpc/grpc": "^v1.1.0",
+    "google/auth": "^1.0"
+  },
+  "autoload": {
+    "psr-4": {
+      "Vendasta\\Sso\\V1\\": "./src",
+      "Sso\\V1\\": "./pb",
+      "GPBMetadata\\Sso\\V1\\": "./pb/GPBMetadata/Sso/V1"
+    }
+  }
+}

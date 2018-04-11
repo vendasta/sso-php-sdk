@@ -5,22 +5,22 @@ namespace Vendasta\Sso\V1;
  * The Identity Provider service provides RPC's for an identity provider application to complete the session transfer
  * process. All RPC's are accessed by an identity provider application, such as VBC, or a partner dashboard.
  */
-class IdentityProviderClient extends BaseClient
+class IdentityProviderClient
 {
-
-    private $default_timeout;
-    private $client;
+    private $transport;
 
     /**
      * @param string $hostname provided by Vendasta
      * @param string $scope provided by Vendasta
      * @param int $default_timeout the default timeout for RPC calls
      */
-    public function __construct($hostname, $scope, $default_timeout = 1000)
+    public function __construct($hostname, $scope, $default_timeout = 10000)
     {
-        $this->default_timeout = $default_timeout;
-        $opts = $this->get_client_options($scope);
-        $this->client = new \Sso\V1\IdentityProviderClient($hostname, $opts);
+        if (class_exists('Grpc\ChannelCredentials', true)) {
+            $this->transport = new IdentityProviderGRPCClient($hostname, $scope, $default_timeout);
+        } else {
+            $this->transport = new IdentityProviderJSONClient($hostname, $scope, $default_timeout);
+        }
     }
 
     /**
@@ -32,15 +32,7 @@ class IdentityProviderClient extends BaseClient
      */
     public function getEntryURL($service_provider_id, $b64_str_service_context)
     {
-        $req = new \Sso\V1\GetEntryURLRequest();
-        $req->setServiceProviderId($service_provider_id);
-        $service_context = $this->buildContext($b64_str_service_context);
-        $req->setContext($service_context);
-        list($response, $status) = $this->client->getEntryURL($req, ['timeout' => $this->default_timeout])->wait();
-        if ($status->code) {
-            throw new SDKException($status->details);
-        }
-        return $response->getEntryUrl();
+        return $this->transport->getEntryURL($service_provider_id, $b64_str_service_context);
     }
 
     /**
@@ -58,21 +50,7 @@ class IdentityProviderClient extends BaseClient
      */
     public function getEntryURLWithCode($service_provider_id, $b64_str_service_context, $session_id, $email, $user_id, $next_url = null)
     {
-        $req = new \Sso\V1\GetEntryURLWithCodeRequest();
-        $req->setServiceProviderId($service_provider_id);
-        $service_context = $this->buildContext($b64_str_service_context);
-        $req->setContext($service_context);
-        $req->setSessionId($session_id);
-        $req->setEmail($email);
-        $req->setUserId($user_id);
-        if ($next_url) {
-            $req->setNextUrl($next_url);
-        }
-        list($response, $status) = $this->client->getEntryURLWithCode($req, ['timeout' => $this->default_timeout])->wait();
-        if ($status->code) {
-            throw new SDKException($status->details);
-        }
-        return $response->getEntryUrl();
+        return $this->transport->getEntryURLWithCode($service_provider_id, $b64_str_service_context, $session_id, $email, $user_id, $next_url);
     }
 
     /**
@@ -81,38 +59,6 @@ class IdentityProviderClient extends BaseClient
      */
     public function logout($session_id)
     {
-        $req = new \Sso\V1\LogoutRequest();
-        $req->setSessionId($session_id);
-        list($response, $status) = $this->client->logout($req, ['timeout' => $this->default_timeout])->wait();
-        if ($status->code) {
-            throw new SDKException($status->details);
-        }
-    }
-
-    private function buildContext($b64_str_service_context)
-    {
-        $json_str_service_context = base64_decode($b64_str_service_context);
-        $json_service_context = json_decode($json_str_service_context);
-        $service_context = new \Sso\V1\ServiceContext();
-        switch ($json_service_context->_type) {
-            case 'account':
-                $account_context = new \Sso\V1\ServiceContext_Account();
-                $account_context->setAccountId($json_service_context->account_id);
-                $service_context->setAccount($account_context);
-                break;
-            case 'partner':
-                $partner_context = new \Sso\V1\ServiceContext_Partner();
-                $partner_context->setPartnerId($json_service_context->partner_id);
-                $service_context->setPartner($partner_context);
-                break;
-            case 'superadmin':
-                $superadmin_context = new \Sso\V1\ServiceContext_SuperAdmin();
-                $service_context->setSuperAdmin($superadmin_context);
-                break;
-            default:
-                throw new \InvalidArgumentException("Invalid context. The context may not be valid json, or it may be missing the '_type' field");
-                break;
-        }
-        return $service_context;
+        return $this->transport->logout($session_id);
     }
 }

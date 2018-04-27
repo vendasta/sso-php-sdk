@@ -8,7 +8,9 @@
     }
   ],
   "require": {
-    "google/auth": "^1.0"
+    "lcobucci/jwt": "3.2.2",
+    "mdanter/ecc": "0.3.1",
+    "guzzlehttp/guzzle": "^6.3"
   },
   "autoload": {
     "psr-4": {

@@ -25,16 +25,13 @@ class IdentityProviderJSONClient
         $this->hostname = $hostname;
         $this->default_timeout = $default_timeout;
 
-        $scopes = [$scope];
-        $creds = ApplicationDefaultCredentials::getCredentials($scope, null, null, null);
-        $middleware = new IDTokenMiddleware($creds);
+        $middleware = new VendastaCredentialsManager();
 
         $stack = HandlerStack::create();
         $stack->push($middleware);
 
         $this->client = new Client([
             'handler' => $stack,
-            'auth' => 'google_auth',
             'timeout' => $default_timeout / 1000,
         ]);
     }

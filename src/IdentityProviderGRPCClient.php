@@ -25,18 +25,14 @@ class IdentityProviderGRPCClient
 
     protected function get_client_options($scope)
     {
-        $auth = \Google\Auth\ApplicationDefaultCredentials::getCredentials($scope);
+        $auth = new VendastaCredentialsManager();
 
         $opts = [
             'credentials' => \Grpc\ChannelCredentials::createSsl(),
             'update_metadata' => function () use ($auth) {
-                $result = $auth->fetchAuthToken(null);
-                if (!isset($result['id_token'])) {
-                    return $metadata;
-                }
+                $result = $auth->fetchAuthToken();
                 $metadata_copy = $metadata;
-                $metadata_copy[$auth::AUTH_METADATA_KEY] = array('Bearer ' . $result['id_token']);
-
+                $metadata_copy[$auth::AUTH_METADATA_KEY] = array('Bearer ' . $result);
                 return $metadata_copy;
             },
         ];

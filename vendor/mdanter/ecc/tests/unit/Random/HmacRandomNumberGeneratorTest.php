@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 
 namespace Mdanter\Ecc\Tests\Random;
 
@@ -17,10 +18,9 @@ class HmacRandomNumberGeneratorTest extends AbstractTestCase
     {
         $math = EccFactory::getAdapter();
         $g = EccFactory::getNistCurves()->generator192();
-        $privateKey  = new PrivateKey($math, $g, 1);
-        $hash = hash('sha256', 'message', true);
+        $privateKey  = new PrivateKey($math, $g, gmp_init(1, 10));
+        $hash = gmp_init(hash('sha256', 'message', false), 16);
 
         new HmacRandomNumberGenerator($math, $privateKey, $hash, 'sha256aaaa');
     }
-
 }

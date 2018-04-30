@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 
 namespace Mdanter\Ecc\Crypto\Key;
 
@@ -26,8 +27,8 @@ namespace Mdanter\Ecc\Crypto\Key;
  * ***********************************************************************
  */
 
-use Mdanter\Ecc\Message\MessageFactory;
-use Mdanter\Ecc\Primitives\PointInterface;
+use Mdanter\Ecc\Crypto\EcDH\EcDHInterface;
+use Mdanter\Ecc\Primitives\GeneratorPoint;
 
 /**
  * This is a contract for the PrivateKey portion of ECDSA.
@@ -38,22 +39,21 @@ interface PrivateKeyInterface
     /**
      * @return PublicKeyInterface
      */
-    public function getPublicKey();
+    public function getPublicKey(): PublicKeyInterface;
 
     /**
-     * @return PointInterface
+     * @return GeneratorPoint
      */
-    public function getPoint();
+    public function getPoint(): GeneratorPoint;
 
     /**
-     * @return int|string
+     * @return \GMP
      */
-    public function getSecret();
+    public function getSecret(): \GMP;
 
     /**
-     * @param  MessageFactory $messageFactory
      * @param  PublicKeyInterface $recipient
-     * @return int|string
+     * @return EcDHInterface
      */
-    public function createExchange(MessageFactory $messageFactory, PublicKeyInterface $recipient);
+    public function createExchange(PublicKeyInterface $recipient): EcDHInterface;
 }

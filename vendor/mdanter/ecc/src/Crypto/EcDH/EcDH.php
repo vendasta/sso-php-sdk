@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 
 namespace Mdanter\Ecc\Crypto\EcDH;
 
@@ -27,13 +28,8 @@ namespace Mdanter\Ecc\Crypto\EcDH;
  */
 
 use Mdanter\Ecc\Crypto\Key\PrivateKeyInterface;
-use Mdanter\Ecc\Crypto\Key\PublicKey;
 use Mdanter\Ecc\Crypto\Key\PublicKeyInterface;
-use Mdanter\Ecc\Message\EncryptedMessage;
-use Mdanter\Ecc\Message\Message;
-use Mdanter\Ecc\Message\MessageFactory;
-use Mdanter\Ecc\Primitives\PointInterface;
-use Mdanter\Ecc\Math\MathAdapterInterface;
+use Mdanter\Ecc\Math\GmpMathInterface;
 
 /**
  * This class is the implementation of ECDH.
@@ -48,19 +44,14 @@ class EcDH implements EcDHInterface
     /**
      * Adapter used for math calculations
      *
-     * @var MathAdapterInterface
+     * @var GmpMathInterface
      */
     private $adapter;
 
     /**
-     * @var \Mdanter\Ecc\Message\MessageFactory
-     */
-    private $messages;
-
-    /**
      * Secret key between the two parties
      *
-     * @var PointInterface
+     * @var PublicKeyInterface
      */
     private $secretKey = null;
 
@@ -79,44 +70,43 @@ class EcDH implements EcDHInterface
     /**
      * Initialize a new exchange from a generator point.
      *
-     * @param MathAdapterInterface $adapter A math adapter instance.
-     * @param \Mdanter\Ecc\Message\MessageFactory $messages A message factory
+     * @param GmpMathInterface $adapter A math adapter instance.
      */
-    public function __construct(MathAdapterInterface $adapter, MessageFactory $messages)
+    public function __construct(GmpMathInterface $adapter)
     {
         $this->adapter = $adapter;
-        $this->messages = $messages;
     }
 
     /**
      * {@inheritDoc}
      * @see \Mdanter\Ecc\Crypto\EcDH\EcDHInterface::calculateSharedKey()
      */
-    public function calculateSharedKey()
+    public function calculateSharedKey(): \GMP
     {
         $this->calculateKey();
 
-        return $this->secretKey->getX();
+        return $this->secretKey->getPoint()->getX();
     }
 
     /**
      * {@inheritDoc}
      * @see \Mdanter\Ecc\Crypto\EcDH\EcDHInterface::createMultiPartyKey()
      */
-    public function createMultiPartyKey()
+    public function createMultiPartyKey(): PublicKeyInterface
     {
         $this->calculateKey();
 
-        return new PublicKey($this->adapter, $this->senderKey->getPoint(), $this->secretKey);
+        return $this->secretKey;
     }
 
     /**
      * {@inheritDoc}
      * @see \Mdanter\Ecc\Crypto\EcDH\EcDHInterface::setRecipientKey()
      */
-    public function setRecipientKey(PublicKeyInterface $key)
+    public function setRecipientKey(PublicKeyInterface $key = null)
     {
         $this->recipientKey = $key;
+        return $this;
     }
 
     /**
@@ -126,60 +116,7 @@ class EcDH implements EcDHInterface
     public function setSenderKey(PrivateKeyInterface $key)
     {
         $this->senderKey = $key;
-    }
-
-    /**
-     * {@inheritDoc}
-     * @see \Mdanter\Ecc\Crypto\EcDH\EcDHInterface::encrypt()
-     */
-    public function encrypt(Message $message)
-    {
-        $key = hash("sha256", $this->calculateSharedKey(), true);
-
-        $cypherText = mcrypt_encrypt(MCRYPT_RIJNDAEL_256, $key, base64_encode($message->getContent()), MCRYPT_MODE_CBC, $key);
-        $message = $this->messages->ciphertext($cypherText);
-        return $message;
-    }
-
-    /**
-     * {@inheritDoc}
-     * @see \Mdanter\Ecc\Crypto\EcDH\EcDHInterface::decrypt()
-     */
-    public function decrypt(EncryptedMessage $ciphertext)
-    {
-        $key = hash("sha256", $this->calculateSharedKey(), true);
-
-        $clearText = base64_decode(mcrypt_decrypt(MCRYPT_RIJNDAEL_256, $key, $ciphertext->getContent(), MCRYPT_MODE_CBC, $key));
-        $clearText = $this->messages->plaintext($clearText, 'sha256');
-        return $clearText;
-    }
-
-    /**
-     * {@inheritDoc}
-     * @see \Mdanter\Ecc\Crypto\EcDH\EcDHInterface::encryptFile()
-     */
-    public function encryptFile($path)
-    {
-        if (file_exists($path) && is_readable($path)) {
-            $message = $this->messages->plaintext(file_get_contents($path), 'sha256');
-            return $this->encrypt($message);
-        }
-
-        throw new \InvalidArgumentException("File '$path' does not exist or is not readable.");
-    }
-
-    /**
-     * {@inheritDoc}
-     * @see \Mdanter\Ecc\Crypto\EcDH\EcDHInterface::decryptFile()
-     */
-    public function decryptFile($path)
-    {
-        if (file_exists($path) && is_readable($path)) {
-            $cipherText = $this->messages->ciphertext(file_get_contents($path));
-            return $cipherText;
-        }
-
-        throw new \InvalidArgumentException("File '$path' does not exist or is not readable.");
+        return $this;
     }
 
     /**
@@ -190,7 +127,16 @@ class EcDH implements EcDHInterface
         $this->checkExchangeState();
 
         if ($this->secretKey === null) {
-            $this->secretKey = $this->recipientKey->getPoint()->mul($this->senderKey->getSecret());
+            try {
+                // Multiply our secret with recipients public key
+                $point = $this->recipientKey->getPoint()->mul($this->senderKey->getSecret());
+
+                // Ensure we completed a valid exchange, ensure we can create a
+                // public key instance for the shared secret using our generator.
+                $this->secretKey = $this->senderKey->getPoint()->getPublicKeyFrom($point->getX(), $point->getY());
+            } catch (\Exception $e) {
+                throw new \RuntimeException("Invalid ECDH exchange");
+            }
         }
     }
 
@@ -211,6 +157,12 @@ class EcDH implements EcDHInterface
 
         if ($this->recipientKey === null) {
             throw new \RuntimeException('Recipient key not set.');
+        }
+
+        // Check the point exists on our curve.
+        $point = $this->recipientKey->getPoint();
+        if (!$this->senderKey->getPoint()->getCurve()->contains($point->getX(), $point->getY())) {
+            throw new \RuntimeException("Invalid ECDH exchange - Point does not exist on our curve");
         }
     }
 }

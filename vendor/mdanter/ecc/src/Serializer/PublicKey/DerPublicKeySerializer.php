@@ -1,9 +1,10 @@
 <?php
+declare(strict_types=1);
 
 namespace Mdanter\Ecc\Serializer\PublicKey;
 
 use Mdanter\Ecc\Crypto\Key\PublicKeyInterface;
-use Mdanter\Ecc\Math\MathAdapterInterface;
+use Mdanter\Ecc\Math\GmpMathInterface;
 use Mdanter\Ecc\Math\MathAdapterFactory;
 use Mdanter\Ecc\Serializer\PublicKey\Der\Formatter;
 use Mdanter\Ecc\Serializer\PublicKey\Der\Parser;
@@ -19,7 +20,7 @@ class DerPublicKeySerializer implements PublicKeySerializerInterface
 
     /**
      *
-     * @var MathAdapterInterface
+     * @var GmpMathInterface
      */
     private $adapter;
 
@@ -37,13 +38,13 @@ class DerPublicKeySerializer implements PublicKeySerializerInterface
 
     /**
      *
-     * @param MathAdapterInterface $adapter
+     * @param GmpMathInterface $adapter
      */
-    public function __construct(MathAdapterInterface $adapter = null)
+    public function __construct(GmpMathInterface $adapter = null)
     {
         $this->adapter = $adapter ?: MathAdapterFactory::getAdapter();
 
-        $this->formatter = new Formatter($this->adapter);
+        $this->formatter = new Formatter();
         $this->parser = new Parser($this->adapter);
     }
 
@@ -52,12 +53,16 @@ class DerPublicKeySerializer implements PublicKeySerializerInterface
      * @param  PublicKeyInterface $key
      * @return string
      */
-    public function serialize(PublicKeyInterface $key)
+    public function serialize(PublicKeyInterface $key): string
     {
         return $this->formatter->format($key);
     }
 
-    public function getUncompressedKey(PublicKeyInterface $key)
+    /**
+     * @param PublicKeyInterface $key
+     * @return string
+     */
+    public function getUncompressedKey(PublicKeyInterface $key): string
     {
         return $this->formatter->encodePoint($key->getPoint());
     }
@@ -66,7 +71,7 @@ class DerPublicKeySerializer implements PublicKeySerializerInterface
      * {@inheritDoc}
      * @see \Mdanter\Ecc\Serializer\PublicKey\PublicKeySerializerInterface::parse()
      */
-    public function parse($string)
+    public function parse(string $string): PublicKeyInterface
     {
         return $this->parser->parse($string);
     }

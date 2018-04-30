@@ -2,9 +2,13 @@
 namespace Vendasta\Sso\V1;
 
 use GuzzleHttp\Client;
-use Lcobucci\JWT\Builder;
-use Lcobucci\JWT\Signer\Keychain;
-use Lcobucci\JWT\Signer\Ecdsa\Sha256;
+use Mdanter\Ecc\Crypto\Signature\SignHasher;
+use Mdanter\Ecc\EccFactory;
+use Mdanter\Ecc\Crypto\Signature\Signer;
+use Mdanter\Ecc\Serializer\PrivateKey\PemPrivateKeySerializer;
+use Mdanter\Ecc\Serializer\PrivateKey\DerPrivateKeySerializer;
+use Mdanter\Ecc\Crypto\Signature\Signature;
+use Mdanter\Ecc\Random\RandomGeneratorFactory;
 
 class VendastaCredentialsManager
 {
@@ -75,18 +79,53 @@ class VendastaCredentialsManager
 
     private function buildJWT() {
         $now = time();
-        $signer = new Sha256();
-        $keychain = new Keychain();
 
-        $token = (new Builder())
-            ->setSubject($this->email)
-            ->setAudience('vendasta.com')
-            ->setIssuedAt($now)
-            ->setExpiration($now + 3600)
-            ->set('kid', $this->key_id)
-            ->sign($signer, $this->key)
-            ->getToken();
+        $header = [
+            'typ' => 'JWT',
+            'alg' => 'ES256',
+        ];
 
-        return $token;
+        $token = [
+            'sub' => $this->email,
+            'aud' => 'vendasta.com',
+            'iat' => $now,
+            'exp' => $now + 3600,
+            'kid' => $this->key_id,
+        ];
+
+        $adapter = EccFactory::getAdapter();
+        $generator = EccFactory::getNistCurves()->generator256();
+        $algorithm = 'sha256';
+        $document = self::encode(json_encode($header, true)).'.'.self::encode(json_encode($token));
+        $pemSerializer = new PemPrivateKeySerializer(new DerPrivateKeySerializer($adapter));
+        $key = $pemSerializer->parse($this->key);
+        $hasher = new SignHasher($algorithm, $adapter);
+        $hash = $hasher->makeHash($document, $generator);
+        $random = RandomGeneratorFactory::getRandomGenerator();
+        $randomK = $random->generate($generator->getOrder());
+        $signer = new Signer($adapter);
+        $signature = $signer->sign($key, $hash, $randomK);
+
+        $signed = $document.".".self::encode(self::createSignatureHash($signature, $adapter));
+        return $signed;
+    }
+
+    private static function encode($data, $use_padding = false)
+    {
+        $encoded = strtr(base64_encode($data), '+/', '-_');
+        return true === $use_padding ? $encoded : rtrim($encoded, '=');
+    }
+
+    private static function createSignatureHash(Signature $signature, $adapter)
+    {
+        $length = 64;
+        return pack(
+            'H*',
+            sprintf(
+                '%s%s',
+                str_pad($adapter->decHex($signature->getR()), $length, '0', STR_PAD_LEFT),
+                str_pad($adapter->decHex($signature->getS()), $length, '0', STR_PAD_LEFT)
+            )
+        );
     }
 }

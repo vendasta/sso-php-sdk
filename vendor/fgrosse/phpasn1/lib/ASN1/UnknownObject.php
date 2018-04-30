@@ -10,7 +10,7 @@
 
 namespace FG\ASN1;
 
-class UnknownObject extends Object
+class UnknownObject extends ASNObject
 {
     /** @var string */
     private $value;
@@ -18,8 +18,8 @@ class UnknownObject extends Object
     private $identifier;
 
     /**
-     * @param string|integer $identifier Either the first identifier octet as int or all identifier bytes as a string
-     * @param integer        $contentLength
+     * @param string|int $identifier Either the first identifier octet as int or all identifier bytes as a string
+     * @param int        $contentLength
      */
     public function __construct($identifier, $contentLength)
     {

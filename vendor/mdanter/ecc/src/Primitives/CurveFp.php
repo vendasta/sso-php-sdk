@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 
 /***********************************************************************
 Copyright (C) 2012 Matyas Danter
@@ -20,11 +21,11 @@ THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES
 OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 OTHER DEALINGS IN THE SOFTWARE.
-*************************************************************************/
+ *************************************************************************/
 namespace Mdanter\Ecc\Primitives;
 
+use Mdanter\Ecc\Math\GmpMathInterface;
 use Mdanter\Ecc\Math\ModularArithmetic;
-use Mdanter\Ecc\Math\MathAdapterInterface;
 use Mdanter\Ecc\Random\RandomNumberGeneratorInterface;
 
 /**
@@ -36,28 +37,15 @@ use Mdanter\Ecc\Random\RandomNumberGeneratorInterface;
  */
 class CurveFp implements CurveFpInterface
 {
+
     /**
-     * Elliptic curve over the field of integers modulo a prime.
-     *
-     * @var int|string
+     * @var CurveParameters
      */
-    protected $a = 0;
+    protected $parameters;
 
     /**
      *
-     * @var int|string
-     */
-    protected $b = 0;
-
-    /**
-     *
-     * @var int|string
-     */
-    protected $prime = 0;
-
-    /**
-     *
-     * @var MathAdapterInterface
+     * @var GmpMathInterface
      */
     protected $adapter = null;
 
@@ -70,127 +58,170 @@ class CurveFp implements CurveFpInterface
     /**
      * Constructor that sets up the instance variables.
      *
-     * @param $prime int|string
-     * @param $a int|string
-     * @param $b int|string
-     * @param $adapter MathAdapterInterface
+     * @param CurveParameters $parameters
+     * @param GmpMathInterface $adapter
      */
-    public function __construct($prime, $a, $b, MathAdapterInterface $adapter)
+    public function __construct(CurveParameters $parameters, GmpMathInterface $adapter)
     {
-        $this->a = $a;
-        $this->b = $b;
-        $this->prime = $prime;
+        $this->parameters = $parameters;
         $this->adapter = $adapter;
-        $this->modAdapter = new ModularArithmetic($this->adapter, $prime);
+        $this->modAdapter = new ModularArithmetic($this->adapter, $this->parameters->getPrime());
     }
 
     /**
      * {@inheritDoc}
-     * @see \Mdanter\Ecc\CurveFpInterface::getModAdapter()
+     * @see \Mdanter\Ecc\Primitives\CurveFpInterface::getModAdapter()
      */
-    public function getModAdapter()
+    public function getModAdapter(): ModularArithmetic
     {
         return $this->modAdapter;
     }
 
     /**
      * {@inheritDoc}
-     * @see \Mdanter\Ecc\CurveFpInterface::getInfinity()
+     * @see \Mdanter\Ecc\Primitives\CurveFpInterface::getPoint()
      */
-    public function getInfinity()
-    {
-        return new Point($this->adapter, $this, 0, 0, 0, true);
-    }
-
-    /**
-     * {@inheritDoc}
-     * @see \Mdanter\Ecc\CurveFpInterface::getPoint()
-     */
-    public function getPoint($x, $y, $order = null)
+    public function getPoint(\GMP $x, \GMP $y, \GMP $order = null): PointInterface
     {
         return new Point($this->adapter, $this, $x, $y, $order);
     }
+    
+    /**
+     * {@inheritDoc}
+     * @see \Mdanter\Ecc\Primitives\CurveFpInterface::getInfinity()
+     */
+    public function getInfinity(): PointInterface
+    {
+        return new Point($this->adapter, $this, gmp_init(0, 10), gmp_init(0, 10), null, true);
+    }
 
     /**
      * {@inheritDoc}
-     * @see \Mdanter\Ecc\CurveFpInterface::getGenerator()
+     * @see \Mdanter\Ecc\Primitives\CurveFpInterface::getGenerator()
      */
-    public function getGenerator($x, $y, $order = null, RandomNumberGeneratorInterface $randomGenerator = null)
+    public function getGenerator(\GMP $x, \GMP $y, \GMP $order, RandomNumberGeneratorInterface $randomGenerator = null): GeneratorPoint
     {
         return new GeneratorPoint($this->adapter, $this, $x, $y, $order, $randomGenerator);
     }
 
     /**
-     * {@inheritDoc}
-     * @see \Mdanter\Ecc\CurveFpInterface::contains()
+     * @param bool $wasOdd
+     * @param \GMP $xCoord
+     * @return \GMP
      */
-    public function contains($x, $y)
+    public function recoverYfromX(bool $wasOdd, \GMP $xCoord): \GMP
+    {
+        $math = $this->adapter;
+        $prime = $this->getPrime();
+
+        $root = $this->adapter->getNumberTheory()->squareRootModP(
+            $math->add(
+                $math->add(
+                    $this->modAdapter->pow($xCoord, gmp_init(3, 10)),
+                    $math->mul($this->getA(), $xCoord)
+                ),
+                $this->getB()
+            ),
+            $prime
+        );
+
+        if ($math->equals($math->mod($root, gmp_init(2, 10)), gmp_init(1)) === $wasOdd) {
+            return $root;
+        } else {
+            return $math->sub($prime, $root);
+        }
+    }
+    /**
+     * {@inheritDoc}
+     * @see \Mdanter\Ecc\Primitives\CurveFpInterface::contains()
+     */
+    public function contains(\GMP $x, \GMP $y): bool
     {
         $math = $this->adapter;
 
-        $eq_zero = $math->cmp($math->mod($math->sub($math->pow($y, 2), $math->add($math->add($math->pow($x, 3), $math->mul($this->a, $x)), $this->b)), $this->prime), 0);
+        $eq_zero = $math->equals(
+            $this->modAdapter->sub(
+                $math->pow($y, 2),
+                $math->add(
+                    $math->add(
+                        $math->pow($x, 3),
+                        $math->mul($this->getA(), $x)
+                    ),
+                    $this->getB()
+                )
+            ),
+            gmp_init(0, 10)
+        );
 
-        return ($eq_zero == 0);
+        return $eq_zero;
     }
 
     /**
      * {@inheritDoc}
-     * @see \Mdanter\Ecc\CurveFpInterface::getA()
+     * @see \Mdanter\Ecc\Primitives\CurveFpInterface::getA()
      */
-    public function getA()
+    public function getA(): \GMP
     {
-        return $this->a;
+        return $this->parameters->getA();
     }
 
     /**
      * {@inheritDoc}
-     * @see \Mdanter\Ecc\CurveFpInterface::getB()
+     * @see \Mdanter\Ecc\Primitives\CurveFpInterface::getB()
      */
-    public function getB()
+    public function getB(): \GMP
     {
-        return $this->b;
+        return $this->parameters->getB();
     }
 
     /**
      * {@inheritDoc}
-     * @see \Mdanter\Ecc\CurveFpInterface::getPrime()
+     * @see \Mdanter\Ecc\Primitives\CurveFpInterface::getPrime()
      */
-    public function getPrime()
+    public function getPrime(): \GMP
     {
-        return $this->prime;
+        return $this->parameters->getPrime();
+    }
+
+    /**
+     * @return int
+     */
+    public function getSize(): int
+    {
+        return $this->parameters->getSize();
     }
 
     /**
      * {@inheritDoc}
-     * @see \Mdanter\Ecc\CurveFpInterface::cmp()
+     * @see \Mdanter\Ecc\Primitives\CurveFpInterface::cmp()
      */
-    public function cmp(CurveFpInterface $other)
+    public function cmp(CurveFpInterface $other): int
     {
         $math = $this->adapter;
 
-        $equal  = ($math->cmp($this->a, $other->getA()) == 0);
-        $equal &= ($math->cmp($this->b, $other->getB()) == 0);
-        $equal &= ($math->cmp($this->prime, $other->getPrime()) == 0);
+        $equal  = $math->equals($this->getA(), $other->getA());
+        $equal &= $math->equals($this->getB(), $other->getB());
+        $equal &= $math->equals($this->getPrime(), $other->getPrime());
 
         return ($equal) ? 0 : 1;
     }
 
     /**
      * {@inheritDoc}
-     * @see \Mdanter\Ecc\CurveFpInterface::equals()
+     * @see \Mdanter\Ecc\Primitives\CurveFpInterface::equals()
      */
-    public function equals(CurveFpInterface $other)
+    public function equals(CurveFpInterface $other): bool
     {
         return $this->cmp($other) == 0;
     }
 
     /**
      * {@inheritDoc}
-     * @see \Mdanter\Ecc\CurveFpInterface::__toString()
+     * @see \Mdanter\Ecc\Primitives\CurveFpInterface::__toString()
      */
-    public function __toString()
+    public function __toString(): string
     {
-        return 'curve('.$this->a.', '.$this->b.', '.$this->prime.')';
+        return 'curve(' . $this->adapter->toString($this->getA()) . ', ' . $this->adapter->toString($this->getB()) . ', ' . $this->adapter->toString($this->getPrime()) . ')';
     }
 
     /**
@@ -199,9 +230,9 @@ class CurveFp implements CurveFpInterface
     public function __debugInfo()
     {
         return [
-            'a' => (string) $this->a,
-            'b' => (string) $this->b,
-            'prime' => (string) $this->prime
+            'a' => $this->adapter->toString($this->getA()),
+            'b' => $this->adapter->toString($this->getB()),
+            'prime' => $this->adapter->toString($this->getPrime())
         ];
     }
 }

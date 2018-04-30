@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 
 namespace Mdanter\Ecc\Serializer\Util;
 
@@ -8,6 +9,7 @@ use Mdanter\Ecc\Curves\CurveFactory;
 use Mdanter\Ecc\Curves\NistCurve;
 use Mdanter\Ecc\Curves\SecgCurve;
 use Mdanter\Ecc\Primitives\CurveFpInterface;
+use Mdanter\Ecc\Primitives\GeneratorPoint;
 
 class CurveOidMapper
 {
@@ -21,6 +23,10 @@ class CurveOidMapper
     const NIST_P384_OID = '1.3.132.0.34';
 
     const NIST_P521_OID = '1.3.132.0.35';
+
+    const SECP_112R1_OID = '1.3.132.0.6';
+
+    const SECP_192K1_OID = '1.3.132.0.31';
 
     const SECP_256K1_OID = '1.3.132.0.10';
 
@@ -37,7 +43,10 @@ class CurveOidMapper
         NistCurve::NAME_P256 => self::NIST_P256_OID,
         NistCurve::NAME_P384 => self::NIST_P384_OID,
         NistCurve::NAME_P521 => self::NIST_P521_OID,
+        SecgCurve::NAME_SECP_112R1 => self::SECP_112R1_OID,
+        SecgCurve::NAME_SECP_192K1 => self::SECP_192K1_OID,
         SecgCurve::NAME_SECP_256K1 => self::SECP_256K1_OID,
+        SecgCurve::NAME_SECP_256R1 => self::SECP_256R1_OID,
         SecgCurve::NAME_SECP_384R1 => self::SECP_384R1_OID,
     );
 
@@ -45,28 +54,31 @@ class CurveOidMapper
      * @var array
      */
     private static $sizeMap = array(
-        NistCurve::NAME_P192 => 12,
+        NistCurve::NAME_P192 => 24,
         NistCurve::NAME_P224 => 28,
         NistCurve::NAME_P256 => 32,
         NistCurve::NAME_P384 => 48,
         NistCurve::NAME_P521 => 66,
-        SecgCurve::NAME_SECP_256K1 => 28,
+        SecgCurve::NAME_SECP_112R1 => 14,
+        SecgCurve::NAME_SECP_192K1 => 24,
+        SecgCurve::NAME_SECP_256K1 => 32,
+        SecgCurve::NAME_SECP_256R1 => 32,
         SecgCurve::NAME_SECP_384R1 => 48,
     );
 
     /**
      * @return array
      */
-    public static function getNames()
+    public static function getNames(): array
     {
         return array_keys(self::$oidMap);
     }
 
     /**
      * @param CurveFpInterface $curve
-     * @return mixed
+     * @return int
      */
-    public static function getByteSize(CurveFpInterface $curve)
+    public static function getByteSize(CurveFpInterface $curve): int
     {
         if ($curve instanceof NamedCurveFp && array_key_exists($curve->getName(), self::$sizeMap)) {
             return self::$sizeMap[$curve->getName()];
@@ -79,7 +91,7 @@ class CurveOidMapper
      * @param NamedCurveFp $curve
      * @return ObjectIdentifier
      */
-    public static function getCurveOid(NamedCurveFp $curve)
+    public static function getCurveOid(NamedCurveFp $curve): ObjectIdentifier
     {
         if (array_key_exists($curve->getName(), self::$oidMap)) {
             $oidString = self::$oidMap[$curve->getName()];
@@ -92,15 +104,15 @@ class CurveOidMapper
 
     /**
      * @param ObjectIdentifier $oid
-     * @return \Mdanter\Ecc\Primitives\GeneratorPoint
+     * @return NamedCurveFp
      */
-    public static function getCurveFromOid(ObjectIdentifier $oid)
+    public static function getCurveFromOid(ObjectIdentifier $oid): NamedCurveFp
     {
         $oidString = $oid->getContent();
         $invertedMap = array_flip(self::$oidMap);
 
         if (array_key_exists($oidString, $invertedMap)) {
-            return CurveFactory::getGeneratorByName($invertedMap[$oidString]);
+            return CurveFactory::getCurveByName($invertedMap[$oidString]);
         }
 
         throw new \RuntimeException('Invalid data: unsupported curve.');
@@ -108,9 +120,9 @@ class CurveOidMapper
 
     /**
      * @param ObjectIdentifier $oid
-     * @return \Mdanter\Ecc\Primitives\GeneratorPoint
+     * @return GeneratorPoint
      */
-    public static function getGeneratorFromOid(ObjectIdentifier $oid)
+    public static function getGeneratorFromOid(ObjectIdentifier $oid): GeneratorPoint
     {
         $oidString = $oid->getContent();
         $invertedMap = array_flip(self::$oidMap);

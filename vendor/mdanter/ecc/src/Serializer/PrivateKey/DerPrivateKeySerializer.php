@@ -1,17 +1,17 @@
 <?php
+declare(strict_types=1);
 
 namespace Mdanter\Ecc\Serializer\PrivateKey;
 
-use FG\ASN1\Object;
+use FG\ASN1\ASNObject;
 use FG\ASN1\Universal\Sequence;
 use FG\ASN1\Universal\Integer;
 use FG\ASN1\Universal\BitString;
 use FG\ASN1\Universal\OctetString;
 use Mdanter\Ecc\Crypto\Key\PrivateKeyInterface;
-use Mdanter\Ecc\Math\MathAdapterInterface;
+use Mdanter\Ecc\Math\GmpMathInterface;
 use Mdanter\Ecc\Math\MathAdapterFactory;
 use Mdanter\Ecc\Serializer\Util\CurveOidMapper;
-use Mdanter\Ecc\Serializer\PublicKey\PemPublicKeySerializer;
 use Mdanter\Ecc\Serializer\PublicKey\DerPublicKeySerializer;
 use FG\ASN1\ExplicitlyTaggedObject;
 
@@ -26,7 +26,7 @@ class DerPrivateKeySerializer implements PrivateKeySerializerInterface
     const VERSION = 1;
 
     /**
-     * @var \Mdanter\Ecc\Math\DebugDecorator|MathAdapterInterface|null
+     * @var GmpMathInterface|null
      */
     private $adapter;
 
@@ -36,10 +36,10 @@ class DerPrivateKeySerializer implements PrivateKeySerializerInterface
     private $pubKeySerializer;
 
     /**
-     * @param MathAdapterInterface   $adapter
-     * @param PemPublicKeySerializer $pubKeySerializer
+     * @param GmpMathInterface       $adapter
+     * @param DerPublicKeySerializer $pubKeySerializer
      */
-    public function __construct(MathAdapterInterface $adapter = null, PemPublicKeySerializer $pubKeySerializer = null)
+    public function __construct(GmpMathInterface $adapter = null, DerPublicKeySerializer $pubKeySerializer = null)
     {
         $this->adapter = $adapter ?: MathAdapterFactory::getAdapter();
         $this->pubKeySerializer = $pubKeySerializer ?: new DerPublicKeySerializer($this->adapter);
@@ -47,9 +47,9 @@ class DerPrivateKeySerializer implements PrivateKeySerializerInterface
 
     /**
      * {@inheritDoc}
-     * @see \Mdanter\Ecc\Serializer\PrivateKeySerializerInterface::serialize()
+     * @see \Mdanter\Ecc\Serializer\PrivateKey\PrivateKeySerializerInterface::serialize()
      */
-    public function serialize(PrivateKeyInterface $key)
+    public function serialize(PrivateKeyInterface $key): string
     {
         $privateKeyInfo = new Sequence(
             new Integer(self::VERSION),
@@ -65,7 +65,7 @@ class DerPrivateKeySerializer implements PrivateKeySerializerInterface
      * @param PrivateKeyInterface $key
      * @return BitString
      */
-    private function encodePubKey(PrivateKeyInterface $key)
+    private function encodePubKey(PrivateKeyInterface $key): BitString
     {
         return new BitString(
             $this->pubKeySerializer->getUncompressedKey($key->getPublicKey())
@@ -74,22 +74,21 @@ class DerPrivateKeySerializer implements PrivateKeySerializerInterface
 
     /**
      * @param PrivateKeyInterface $key
-     * @return int|mixed|string
+     * @return string
      */
-    private function formatKey(PrivateKeyInterface $key)
+    private function formatKey(PrivateKeyInterface $key): string
     {
-        return $this->adapter->decHex($key->getSecret());
+        return gmp_strval($key->getSecret(), 16);
     }
 
     /**
-     * @param string $data
      * {@inheritDoc}
-     * @see \Mdanter\Ecc\Serializer\PrivateKeySerializerInterface::parse()
+     * @see \Mdanter\Ecc\Serializer\PrivateKey\PrivateKeySerializerInterface::parse()
      * @throws \FG\ASN1\Exception\ParserException
      */
-    public function parse($data)
+    public function parse(string $data): PrivateKeyInterface
     {
-        $asnObject = Object::fromBinary($data);
+        $asnObject = ASNObject::fromBinary($data);
 
         if (! ($asnObject instanceof Sequence) || $asnObject->getNumberofChildren() !== 4) {
             throw new \RuntimeException('Invalid data.');
@@ -103,9 +102,8 @@ class DerPrivateKeySerializer implements PrivateKeySerializerInterface
             throw new \RuntimeException('Invalid data: only version 1 (RFC5915) keys are supported.');
         }
 
-        $key = $this->adapter->hexDec($children[1]->getContent());
-        $oid = $children[2]->getContent();
-
+        $key = gmp_init($children[1]->getContent(), 16);
+        $oid = $children[2]->getContent()[0];
         $generator = CurveOidMapper::getGeneratorFromOid($oid);
 
         return $generator->getPrivateKeyFrom($key);

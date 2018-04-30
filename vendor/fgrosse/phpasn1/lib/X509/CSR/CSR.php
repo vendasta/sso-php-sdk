@@ -78,14 +78,14 @@ class CSR extends Sequence
         $tmp = base64_encode($this->getBinary());
 
         for ($i = 0; $i < strlen($tmp); $i++) {
-            if (($i+2) % 65 == 0) {
-                $tmp = substr($tmp, 0, $i+1)."\n".substr($tmp, $i+1);
+            if (($i + 2) % 65 == 0) {
+                $tmp = substr($tmp, 0, $i + 1)."\n".substr($tmp, $i + 1);
             }
         }
 
-        $result = "-----BEGIN CERTIFICATE REQUEST-----".PHP_EOL;
+        $result = '-----BEGIN CERTIFICATE REQUEST-----'.PHP_EOL;
         $result .= $tmp.PHP_EOL;
-        $result .= "-----END CERTIFICATE REQUEST-----";
+        $result .= '-----END CERTIFICATE REQUEST-----';
 
         return $result;
     }
@@ -94,34 +94,42 @@ class CSR extends Sequence
     {
         return self::CSR_VERSION_NR;
     }
+
     public function getOrganizationName()
     {
         return $this->subject->getOrganization();
     }
+
     public function getLocalName()
     {
         return $this->subject->getLocality();
     }
+
     public function getState()
     {
         return $this->subject->getState();
     }
+
     public function getCountry()
     {
         return $this->subject->getCountry();
     }
+
     public function getOrganizationalUnit()
     {
         return $this->subject->getOrganizationalUnit();
     }
+
     public function getPublicKey()
     {
         return $this->publicKey;
     }
+
     public function getSignature()
     {
         return $this->signature;
     }
+
     public function getSignatureAlgorithm()
     {
         return $this->signatureAlgorithm;

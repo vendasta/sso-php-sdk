@@ -12,7 +12,7 @@ namespace FG\X509;
 
 use FG\ASN1\Exception\ParserException;
 use FG\ASN1\OID;
-use FG\ASN1\Object;
+use FG\ASN1\ASNObject;
 use FG\ASN1\Parsable;
 use FG\ASN1\Identifier;
 use FG\ASN1\Universal\OctetString;
@@ -24,12 +24,12 @@ use FG\X509\SAN\SubjectAlternativeNames;
 class CertificateExtensions extends Set implements Parsable
 {
     private $innerSequence;
-    private $extensions = array();
+    private $extensions = [];
 
     public function __construct()
     {
         $this->innerSequence = new Sequence();
-        $this->addChild($this->innerSequence);
+        parent::__construct($this->innerSequence);
     }
 
     public function addSubjectAlternativeNames(SubjectAlternativeNames $sans)
@@ -37,7 +37,7 @@ class CertificateExtensions extends Set implements Parsable
         $this->addExtension(OID::CERT_EXT_SUBJECT_ALT_NAME, $sans);
     }
 
-    private function addExtension($oidString, Object $extension)
+    private function addExtension($oidString, ASNObject $extension)
     {
         $sequence = new Sequence();
         $sequence->addChild(new ObjectIdentifier($oidString));
@@ -61,7 +61,7 @@ class CertificateExtensions extends Set implements Parsable
         $extensions = Sequence::fromBinary($binaryData, $offsetIndex);
         $tmpOffset += 1 + $extensions->getNumberOfLengthOctets();
 
-        $parsedObject = new CertificateExtensions();
+        $parsedObject = new self();
         foreach ($extensions as $extension) {
             if ($extension->getType() != Identifier::SEQUENCE) {
                 //FIXME wrong offset index
@@ -73,7 +73,7 @@ class CertificateExtensions extends Set implements Parsable
             if (count($children) < 2) {
                 throw new ParserException('Could not parse Certificate Extensions: Needs at least two child elements per extension sequence (object identifier and octet string)', $tmpOffset);
             }
-            /** @var Object $objectIdentifier */
+            /** @var \FG\ASN1\ASNObject $objectIdentifier */
             $objectIdentifier = $children[0];
 
             /** @var OctetString $octetString */

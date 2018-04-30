@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 
 namespace Mdanter\Ecc\Serializer\PublicKey\Der;
 
@@ -7,7 +8,6 @@ use FG\ASN1\Universal\ObjectIdentifier;
 use FG\ASN1\Universal\BitString;
 use Mdanter\Ecc\Primitives\PointInterface;
 use Mdanter\Ecc\Crypto\Key\PublicKeyInterface;
-use Mdanter\Ecc\Math\MathAdapterInterface;
 use Mdanter\Ecc\Curves\NamedCurveFp;
 use Mdanter\Ecc\Serializer\Util\CurveOidMapper;
 use Mdanter\Ecc\Serializer\PublicKey\DerPublicKeySerializer;
@@ -16,18 +16,25 @@ use Mdanter\Ecc\Serializer\Point\UncompressedPointSerializer;
 
 class Formatter
 {
-
-    private $adapter;
-
+    /**
+     * @var UncompressedPointSerializer
+     */
     private $pointSerializer;
 
-    public function __construct(MathAdapterInterface $adapter, PointSerializerInterface $pointSerializer = null)
+    /**
+     * Formatter constructor.
+     * @param PointSerializerInterface|null $pointSerializer
+     */
+    public function __construct(PointSerializerInterface $pointSerializer = null)
     {
-        $this->adapter = $adapter;
-        $this->pointSerializer = $pointSerializer ?: new UncompressedPointSerializer($adapter);
+        $this->pointSerializer = $pointSerializer ?: new UncompressedPointSerializer();
     }
 
-    public function format(PublicKeyInterface $key)
+    /**
+     * @param PublicKeyInterface $key
+     * @return string
+     */
+    public function format(PublicKeyInterface $key): string
     {
         if (! ($key->getCurve() instanceof NamedCurveFp)) {
             throw new \RuntimeException('Not implemented for unnamed curves');
@@ -44,7 +51,11 @@ class Formatter
         return $sequence->getBinary();
     }
 
-    public function encodePoint(PointInterface $point)
+    /**
+     * @param PointInterface $point
+     * @return string
+     */
+    public function encodePoint(PointInterface $point): string
     {
         return $this->pointSerializer->serialize($point);
     }

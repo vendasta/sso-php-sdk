@@ -29,40 +29,58 @@ use FG\ASN1\Exception\ParserException;
  *
  * @see http://luca.ntop.org/Teaching/Appunti/asn1.html
  */
-class ExplicitlyTaggedObject extends Object
+class ExplicitlyTaggedObject extends ASNObject
 {
-    private $decoratedObject;
+    /** @var \FG\ASN1\ASNObject[] */
+    private $decoratedObjects;
     private $tag;
 
     /**
      * @param int $tag
-     * @param \FG\ASN1\Object $object
+     * @param \FG\ASN1\ASNObject $objects,...
      */
-    public function __construct($tag, Object $object)
+    public function __construct($tag, /* HH_FIXME[4858]: variadic + strict */ ...$objects)
     {
         $this->tag = $tag;
-        $this->decoratedObject = $object;
+        $this->decoratedObjects = $objects;
     }
 
     protected function calculateContentLength()
     {
-        return $this->decoratedObject->getObjectLength();
+        $length = 0;
+        foreach ($this->decoratedObjects as $object) {
+            $length += $object->getObjectLength();
+        }
+
+        return $length;
     }
 
     protected function getEncodedValue()
     {
-        return $this->decoratedObject->getBinary();
+        $encoded = '';
+        foreach ($this->decoratedObjects as $object) {
+            $encoded .= $object->getBinary();
+        }
+
+        return $encoded;
     }
 
     public function getContent()
     {
-        return $this->decoratedObject;
+        return $this->decoratedObjects;
     }
 
     public function __toString()
     {
-        $decoratedType = Identifier::getShortName($this->decoratedObject->getType());
-        return "Context specific $decoratedType with tag [{$this->tag}]";
+        switch ($length = count($this->decoratedObjects)) {
+        case 0:
+            return "Context specific empty object with tag [{$this->tag}]";
+        case 1:
+            $decoratedType = Identifier::getShortName($this->decoratedObjects[0]->getType());
+            return "Context specific $decoratedType with tag [{$this->tag}]";
+        default:
+            return "$length context specific objects with tag [{$this->tag}]";
+        }
     }
 
     public function getType()
@@ -86,19 +104,28 @@ class ExplicitlyTaggedObject extends Object
     {
         $identifier = self::parseBinaryIdentifier($binaryData, $offsetIndex);
         $firstIdentifierOctet = ord($identifier);
-        assert(Identifier::isContextSpecificClass($firstIdentifierOctet));
-        assert(Identifier::isConstructed($firstIdentifierOctet));
+        assert(Identifier::isContextSpecificClass($firstIdentifierOctet), 'identifier octet should indicate context specific class');
+        assert(Identifier::isConstructed($firstIdentifierOctet), 'identifier octet should indicate constructed object');
         $tag = Identifier::getTagNumber($identifier);
 
-        $contentLength = self::parseContentLength($binaryData, $offsetIndex);
+        $totalContentLength = self::parseContentLength($binaryData, $offsetIndex);
+        $remainingContentLength = $totalContentLength;
+
         $offsetIndexOfDecoratedObject = $offsetIndex;
-        $decoratedObject = Object::fromBinary($binaryData, $offsetIndex);
-        if ($decoratedObject->getObjectLength() != $contentLength) {
-            throw new ParserException("Context-Specific explicitly tagged object [$tag] starting at offset $offsetIndexOfDecoratedObject is longer than allowed in the outer tag", $offsetIndexOfDecoratedObject);
+        $decoratedObjects = [];
+
+        while ($remainingContentLength > 0) {
+            $nextObject = ASNObject::fromBinary($binaryData, $offsetIndex);
+            $remainingContentLength -= $nextObject->getObjectLength();
+            $decoratedObjects[] = $nextObject;
         }
 
-        $parsedObject = new self($tag, $decoratedObject);
-        $parsedObject->setContentLength($contentLength);
+        if ($remainingContentLength != 0) {
+            throw new ParserException("Context-Specific explicitly tagged object [$tag] starting at offset $offsetIndexOfDecoratedObject specifies a length of $totalContentLength octets but $remainingContentLength remain after parsing the content", $offsetIndexOfDecoratedObject);
+        }
+
+        $parsedObject = new self($tag, ...$decoratedObjects);
+        $parsedObject->setContentLength($totalContentLength);
         return $parsedObject;
     }
 }

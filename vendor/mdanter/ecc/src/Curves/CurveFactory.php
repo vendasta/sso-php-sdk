@@ -1,19 +1,23 @@
 <?php
+declare(strict_types=1);
 
 namespace Mdanter\Ecc\Curves;
 
+use Mdanter\Ecc\Math\GmpMathInterface;
 use Mdanter\Ecc\Math\MathAdapterFactory;
+use Mdanter\Ecc\Primitives\GeneratorPoint;
 
 class CurveFactory
 {
     /**
-     * @param $name
-     * @return NamedCurveFp|\Mdanter\Ecc\Primitives\CurveFp|\Mdanter\Ecc\Primitives\CurveFpInterface
+     * @param string $name
+     * @return NamedCurveFp
      */
-    public static function getCurveByName($name)
+    public static function getCurveByName(string $name): NamedCurveFp
     {
-        $nistFactory = self::getNistFactory();
-        $secpFactory = self::getSecpFactory();
+        $adapter = MathAdapterFactory::getAdapter();
+        $nistFactory = self::getNistFactory($adapter);
+        $secpFactory = self::getSecpFactory($adapter);
 
         switch ($name) {
             case NistCurve::NAME_P192:
@@ -26,6 +30,10 @@ class CurveFactory
                 return $nistFactory->curve384();
             case NistCurve::NAME_P521:
                 return $nistFactory->curve521();
+            case SecgCurve::NAME_SECP_112R1:
+                return $secpFactory->curve112r1();
+            case SecgCurve::NAME_SECP_192K1:
+                return $secpFactory->curve192k1();
             case SecgCurve::NAME_SECP_256K1:
                 return $secpFactory->curve256k1();
             case SecgCurve::NAME_SECP_256R1:
@@ -38,13 +46,14 @@ class CurveFactory
     }
 
     /**
-     * @param $name
-     * @return \Mdanter\Ecc\Primitives\GeneratorPoint
+     * @param string $name
+     * @return GeneratorPoint
      */
-    public static function getGeneratorByName($name)
+    public static function getGeneratorByName(string $name): GeneratorPoint
     {
-        $nistFactory = self::getNistFactory();
-        $secpFactory = self::getSecpFactory();
+        $adapter = MathAdapterFactory::getAdapter();
+        $nistFactory = self::getNistFactory($adapter);
+        $secpFactory = self::getSecpFactory($adapter);
 
         switch ($name) {
             case NistCurve::NAME_P192:
@@ -57,6 +66,10 @@ class CurveFactory
                 return $nistFactory->generator384();
             case NistCurve::NAME_P521:
                 return $nistFactory->generator521();
+            case SecgCurve::NAME_SECP_112R1:
+                return $secpFactory->generator112r1();
+            case SecgCurve::NAME_SECP_192K1:
+                return $secpFactory->generator192k1();
             case SecgCurve::NAME_SECP_256K1:
                 return $secpFactory->generator256k1();
             case SecgCurve::NAME_SECP_256R1:
@@ -69,18 +82,20 @@ class CurveFactory
     }
 
     /**
+     * @param GmpMathInterface $math
      * @return NistCurve
      */
-    private static function getNistFactory()
+    private static function getNistFactory(GmpMathInterface $math): NistCurve
     {
-        return new NistCurve(MathAdapterFactory::getAdapter());
+        return new NistCurve($math);
     }
 
     /**
+     * @param GmpMathInterface $math
      * @return SecgCurve
      */
-    private static function getSecpFactory()
+    private static function getSecpFactory(GmpMathInterface $math): SecgCurve
     {
-        return new SecgCurve(MathAdapterFactory::getAdapter());
+        return new SecgCurve($math);
     }
 }

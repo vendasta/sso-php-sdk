@@ -37,36 +37,42 @@ namespace Mdanter\Ecc\Math;
 class NumberTheory
 {
     /**
-     * @var MathAdapterInterface
+     * @var GmpMathInterface
      */
-    protected $adapter;
+    private $adapter;
 
     /**
-     * @param MathAdapterInterface $adapter
+     * @param GmpMathInterface $adapter
      */
-    public function __construct(MathAdapterInterface $adapter)
+    public function __construct(GmpMathInterface $adapter)
     {
         $this->adapter = $adapter;
+        $this->zero = gmp_init(0, 10);
+        $this->one = gmp_init(1, 10);
+        $this->two = gmp_init(2, 10);
     }
 
     /**
-     * @param $poly
-     * @param $polymod
-     * @param $p
-     * @return array
+     * @param \GMP[] $poly
+     * @param \GMP[] $polymod
+     * @param \GMP $p
+     * @return \GMP[]
      */
-    public function polynomialReduceMod($poly, $polymod, $p)
+    public function polynomialReduceMod(array $poly, array $polymod, \GMP $p): array
     {
-        $count_polymod = count($polymod);
-        if (end($polymod) == 1 && $count_polymod > 1) {
+        $adapter = $this->adapter;
+
+        // Only enter if last value is set, implying count > 0
+        if ((($last = end($polymod)) instanceof \GMP) && $adapter->equals($last, $this->one)) {
+            $count_polymod = count($polymod);
             while (count($poly) >= $count_polymod) {
-                if (end($poly) != 0) {
+                if (!$adapter->equals(end($poly), $this->zero)) {
                     for ($i = 2; $i < $count_polymod + 1; $i++) {
                         $poly[count($poly) - $i] =
-                            $this->adapter->mod(
-                                $this->adapter->sub(
+                            $adapter->mod(
+                                $adapter->sub(
                                     $poly[count($poly) - $i],
-                                    $this->adapter->mul(
+                                    $adapter->mul(
                                         end($poly),
                                         $polymod[$count_polymod - $i]
                                     )
@@ -86,13 +92,13 @@ class NumberTheory
     }
 
     /**
-     * @param $m1
-     * @param $m2
-     * @param $polymod
-     * @param $p
-     * @return array
+     * @param \GMP[] $m1
+     * @param \GMP[] $m2
+     * @param \GMP[] $polymod
+     * @param \GMP $p
+     * @return \GMP[]
      */
-    public function polynomialMultiplyMod($m1, $m2, $polymod, $p)
+    public function polynomialMultiplyMod(array $m1, array $m2, array $polymod, \GMP $p): array
     {
         $prod = array();
         $cm1 = count($m1);
@@ -102,7 +108,7 @@ class NumberTheory
             for ($j = 0; $j < $cm2; $j++) {
                 $index = $i + $j;
                 if (!isset($prod[$index])) {
-                    $prod[$index] = 0;
+                    $prod[$index] = $this->zero;
                 }
                 $prod[$index] =
                     $this->adapter->mod(
@@ -122,33 +128,35 @@ class NumberTheory
     }
 
     /**
-     * @param $base
-     * @param $exponent
-     * @param $polymod
-     * @param $p
-     * @return array|int
+     * @param \GMP[] $base
+     * @param \GMP $exponent
+     * @param \GMP[] $polymod
+     * @param \GMP $p
+     * @return \GMP[]
      */
-    public function polynomialPowMod($base, $exponent, $polymod, $p)
+    public function polynomialPowMod(array $base, \GMP $exponent, array $polymod, \GMP $p): array
     {
-        if ($this->adapter->cmp($exponent, $p) < 0) {
-            if ($this->adapter->cmp($exponent, 0) == 0) {
-                return 1;
+        $adapter = $this->adapter;
+
+        if ($adapter->cmp($exponent, $p) < 0) {
+            if ($adapter->equals($exponent, $this->zero)) {
+                return $this->one;
             }
 
             $G = $base;
             $k = $exponent;
 
-            if ($this->adapter->cmp($this->adapter->mod($k, 2), 1) == 0) {
+            if ($adapter->equals($adapter->mod($k, $this->two), $this->one)) {
                 $s = $G;
             } else {
-                $s = array(1);
+                $s = array($this->one);
             }
 
-            while ($this->adapter->cmp($k, 1) > 0) {
-                $k = $this->adapter->div($k, 2);
+            while ($adapter->cmp($k, $this->one) > 0) {
+                $k = $adapter->div($k, $this->two);
 
                 $G = $this->polynomialMultiplyMod($G, $G, $polymod, $p);
-                if ($this->adapter->mod($k, 2) == 1) {
+                if ($adapter->equals($adapter->mod($k, $this->two), $this->one)) {
                     $s = $this->polynomialMultiplyMod($G, $s, $polymod, $p);
                 }
             }
@@ -157,92 +165,93 @@ class NumberTheory
         }
 
         throw new \InvalidArgumentException('Unable to calculate polynomialPowMod');
-
     }
 
     /**
-     * @param $a
-     * @param $p
-     * @return int|string
+     * @param \GMP $a
+     * @param \GMP $p
+     * @return \GMP
      */
-    public function squareRootModP($a, $p)
+    public function squareRootModP(\GMP $a, \GMP $p): \GMP
     {
-        if (0 <= $a && $a < $p && 1 < $p) {
-            if ($a == 0) {
-                return 0;
+        $math = $this->adapter;
+        $four = gmp_init(4, 10);
+        $eight = gmp_init(8, 10);
+
+        $modMath = $math->getModularArithmetic($p);
+        if ($math->cmp($this->one, $p) < 0) {
+            if ($math->equals($a, $this->zero)) {
+                return $this->zero;
             }
 
-            if ($p == 2) {
+            if ($math->equals($p, $this->two)) {
                 return $a;
             }
-            $jac = $this->adapter->jacobi($a, $p);
 
-            if ($jac == -1) {
-                throw new \LogicException($a." has no square root modulo ".$p);
+            $jac = $math->jacobi($a, $p);
+            if ($jac === -1) {
+                throw new \LogicException($math->toString($a)." has no square root modulo ".$math->toString($p));
             }
 
-            if ($this->adapter->mod($p, 4) == 3) {
-                return $this->adapter->powmod($a, $this->adapter->div($this->adapter->add($p, 1), 4), $p);
+            if ($math->equals($math->mod($p, $four), gmp_init(3, 10))) {
+                return $modMath->pow($a, $math->div($math->add($p, $this->one), $four));
             }
 
-            if ($this->adapter->mod($p, 8) == 5) {
-                $d = $this->adapter->powmod($a, $this->adapter->div($this->adapter->sub($p, 1), 4), $p);
-                if ($d == 1) {
-                    return $this->adapter->powmod($a, $this->adapter->div($this->adapter->add($p, 3), 8), $p);
+            if ($math->equals($math->mod($p, $eight), gmp_init(5, 10))) {
+                $d = $modMath->pow($a, $math->div($math->sub($p, $this->one), $four));
+                if ($math->equals($d, $this->one)) {
+                    return $modMath->pow($a, $math->div($math->add($p, gmp_init(3, 10)), $eight));
                 }
-                if ($d == $p - 1) {
-                    return $this->adapter->mod(
-                        $this->adapter->mul(
-                            $this->adapter->mul(
-                                2,
+
+                if ($math->equals($d, $math->sub($p, $this->one))) {
+                    return $modMath->mul(
+                        $math->mul(
+                            $this->two,
+                            $a
+                        ),
+                        $modMath->pow(
+                            $math->mul(
+                                $four,
                                 $a
                             ),
-                            $this->adapter->powmod(
-                                $this->adapter->mul(
-                                    4,
-                                    $a
+                            $math->div(
+                                $math->sub(
+                                    $p,
+                                    gmp_init(5, 10)
                                 ),
-                                $this->adapter->div(
-                                    $this->adapter->sub(
-                                        $p,
-                                        5
-                                    ),
-                                    8
-                                ),
-                                $p
+                                $eight
                             )
-                        ),
-                        $p
+                        )
                     );
                 }
                 //shouldn't get here
             }
 
-            for ($b = 2; $b < $p; $b++) {
-                if ($this->adapter->jacobi(
-                    $this->adapter->sub(
-                        $this->adapter->mul($b, $b),
-                        $this->adapter->mul(4, $a)
+            for ($b = $this->two; $math->cmp($b, $p) < 0; $b = gmp_add($b, $this->one)) {
+                if ($math->jacobi(
+                    $math->sub(
+                        $math->mul($b, $b),
+                        $math->mul($four, $a)
                     ),
                     $p
                 ) == -1
                 ) {
-                    $f = array($a, -$b, 1);
+                    $f = array($a, $math->sub($this->zero, $b), $this->one);
 
                     $ff = $this->polynomialPowMod(
-                        array(0, 1),
-                        $this->adapter->div(
-                            $this->adapter->add(
+                        array($this->zero, $this->one),
+                        $math->div(
+                            $math->add(
                                 $p,
-                                1
+                                $this->one
                             ),
-                            2
+                            $this->two
                         ),
                         $f,
                         $p
                     );
 
-                    if ($ff[1] == 0) {
+                    if ($math->equals($ff[1], $this->zero)) {
                         return $ff[0];
                     }
                     // if we got here no b was found
@@ -251,6 +260,5 @@ class NumberTheory
         }
 
         throw new \InvalidArgumentException('Unable to calculate square root mod p!');
-
     }
 }

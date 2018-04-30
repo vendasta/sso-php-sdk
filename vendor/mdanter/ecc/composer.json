@@ -2,8 +2,8 @@
     "name": "mdanter/ecc",
     "description": "PHP Elliptic Curve Cryptography library",
     "type": "library",
-    "homepage": "https://github.com/mdanter/phpecc",
-    "time": "2014-07-07 12:44:15",
+    "homepage": "https://github.com/phpecc/phpecc",
+    "keywords": ["secp256k1", "secp256r1", "nistp192", "nistp224", "nistp256", "nistp384", "nistp521", "ECDSA", "diffie", "hellman", "ECDH", "elliptic", "curve", "phpecc"],
     "license": "MIT",
     "authors": [
         {
@@ -18,23 +18,20 @@
             "role": "Maintainer"
         },
         {
-            "name": "Drak",
-            "email": "drak@zikula.org",
-            "homepage": "http://zikula.org",
+            "name": "Thomas Kerin",
+            "email": "afk11@users.noreply.github.com",
             "role": "Maintainer"
         }
     ],
     "require": {
-        "php": ">=5.4.0",
+        "php": ">=7.0",
         "ext-gmp": "*",
-        "ext-mcrypt": "*",
-        "fgrosse/phpasn1": "~1.3.1",
-        "symfony/console": "~2.6"
+        "fgrosse/phpasn1": "v2.0.x"
     },
     "require-dev": {
-        "phpunit/phpunit": "~4.1",
+        "phpunit/phpunit": "^6.0",
         "squizlabs/php_codesniffer": "~2",
-        "symfony/yaml": "~2.6"
+        "symfony/yaml": "~2.6|~3.0"
     },
     "autoload": {
         "psr-4": {

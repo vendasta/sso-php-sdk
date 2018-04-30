@@ -1,10 +1,12 @@
 <?php
+declare(strict_types=1);
 
 namespace Mdanter\Ecc\Serializer\PublicKey\Der;
 
-use FG\ASN1\Object;
+use FG\ASN1\ASNObject;
 use FG\ASN1\Universal\Sequence;
-use Mdanter\Ecc\Math\MathAdapterInterface;
+use Mdanter\Ecc\Crypto\Key\PublicKeyInterface;
+use Mdanter\Ecc\Math\GmpMathInterface;
 use Mdanter\Ecc\Serializer\Util\CurveOidMapper;
 use Mdanter\Ecc\Primitives\GeneratorPoint;
 use Mdanter\Ecc\Serializer\PublicKey\DerPublicKeySerializer;
@@ -15,19 +17,35 @@ use Mdanter\Ecc\Crypto\Key\PublicKey;
 class Parser
 {
 
+    /**
+     * @var GmpMathInterface
+     */
     private $adapter;
 
+    /**
+     * @var UncompressedPointSerializer
+     */
     private $pointSerializer;
 
-    public function __construct(MathAdapterInterface $adapter, PointSerializerInterface $pointSerializer = null)
+    /**
+     * Parser constructor.
+     * @param GmpMathInterface $adapter
+     * @param PointSerializerInterface|null $pointSerializer
+     */
+    public function __construct(GmpMathInterface $adapter, PointSerializerInterface $pointSerializer = null)
     {
         $this->adapter = $adapter;
-        $this->pointSerializer = $pointSerializer ?: new UncompressedPointSerializer($adapter);
+        $this->pointSerializer = $pointSerializer ?: new UncompressedPointSerializer();
     }
 
-    public function parse($binaryData)
+    /**
+     * @param string $binaryData
+     * @return PublicKeyInterface
+     * @throws \FG\ASN1\Exception\ParserException
+     */
+    public function parse(string $binaryData): PublicKeyInterface
     {
-        $asnObject = Object::fromBinary($binaryData);
+        $asnObject = ASNObject::fromBinary($binaryData);
 
         if (! ($asnObject instanceof Sequence) || $asnObject->getNumberofChildren() != 2) {
             throw new \RuntimeException('Invalid data.');
@@ -48,7 +66,12 @@ class Parser
         return $this->parseKey($generator, $encodedKey->getContent());
     }
 
-    public function parseKey(GeneratorPoint $generator, $data)
+    /**
+     * @param GeneratorPoint $generator
+     * @param string $data
+     * @return PublicKeyInterface
+     */
+    public function parseKey(GeneratorPoint $generator, string $data): PublicKeyInterface
     {
         $point = $this->pointSerializer->unserialize($generator->getCurve(), $data);
 

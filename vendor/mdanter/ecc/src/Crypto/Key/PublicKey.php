@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 
 namespace Mdanter\Ecc\Crypto\Key;
 
@@ -26,7 +27,7 @@ namespace Mdanter\Ecc\Crypto\Key;
  * ***********************************************************************
  */
 
-use Mdanter\Ecc\Math\MathAdapterInterface;
+use Mdanter\Ecc\Math\GmpMathInterface;
 use Mdanter\Ecc\Primitives\CurveFpInterface;
 use Mdanter\Ecc\Primitives\GeneratorPoint;
 use Mdanter\Ecc\Primitives\PointInterface;
@@ -40,36 +41,36 @@ class PublicKey implements PublicKeyInterface
      *
      * @var CurveFpInterface
      */
-    protected $curve;
+    private $curve;
 
     /**
      *
      * @var GeneratorPoint
      */
-    protected $generator;
+    private $generator;
 
     /**
      *
      * @var PointInterface
      */
-    protected $point;
+    private $point;
 
     /**
      *
-     * @var MathAdapterInterface
+     * @var GmpMathInterface
      */
-    protected $adapter;
+    private $adapter;
 
     /**
-     * Initialize a new instance.
+     * Initialize a new PublicKey instance.
      *
-     * @param  MathAdapterInterface $adapter
-     * @param  GeneratorPoint       $generator
-     * @param  PointInterface       $point
+     * @param  GmpMathInterface  $adapter
+     * @param  GeneratorPoint    $generator
+     * @param  PointInterface    $point
      * @throws \LogicException
      * @throws \RuntimeException
      */
-    public function __construct(MathAdapterInterface $adapter, GeneratorPoint $generator, PointInterface $point)
+    public function __construct(GmpMathInterface $adapter, GeneratorPoint $generator, PointInterface $point)
     {
         $this->curve = $generator->getCurve();
         $this->generator = $generator;
@@ -78,18 +79,17 @@ class PublicKey implements PublicKeyInterface
 
         $n = $generator->getOrder();
 
-        if ($n == null) {
-            throw new \LogicException("Generator must have order.");
-        }
-
-        if (! $point->mul($n)->isInfinity()) {
-            throw new \RuntimeException("Generator point order is bad.");
-        }
-
-        if ($adapter->cmp($point->getX(), 0) < 0 || $adapter->cmp($n, $point->getX()) <= 0
-            || $adapter->cmp($point->getY(), 0) < 0 || $adapter->cmp($n, $point->getY()) <= 0
+        if ($adapter->cmp($point->getX(), gmp_init(0, 10)) < 0 || $adapter->cmp($n, $point->getX()) <= 0
+            || $adapter->cmp($point->getY(), gmp_init(0, 10)) < 0 || $adapter->cmp($n, $point->getY()) <= 0
         ) {
             throw new \RuntimeException("Generator point has x and y out of range.");
+        }
+
+        // Sanity check. Point (x,y) values are qualified against it's
+        // generator and curve. Here we ensure the Point and Generator
+        // are the same.
+        if (!$generator->getCurve()->equals($point->getCurve())) {
+            throw new \RuntimeException("Curve for given point not in common with GeneratorPoint");
         }
     }
 
@@ -97,7 +97,7 @@ class PublicKey implements PublicKeyInterface
      * {@inheritDoc}
      * @see \Mdanter\Ecc\Crypto\Key\PublicKeyInterface::getCurve()
      */
-    public function getCurve()
+    public function getCurve(): CurveFpInterface
     {
         return $this->curve;
     }
@@ -106,7 +106,7 @@ class PublicKey implements PublicKeyInterface
      * {$inheritDoc}
      * @see \Mdanter\Ecc\Crypto\Key\PublicKeyInterface::getGenerator()
      */
-    public function getGenerator()
+    public function getGenerator(): GeneratorPoint
     {
         return $this->generator;
     }
@@ -115,7 +115,7 @@ class PublicKey implements PublicKeyInterface
      * {@inheritDoc}
      * @see \Mdanter\Ecc\Crypto\Key\PublicKeyInterface::getPoint()
      */
-    public function getPoint()
+    public function getPoint(): PointInterface
     {
         return $this->point;
     }

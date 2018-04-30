@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 
 namespace Mdanter\Ecc\Serializer\PublicKey;
 
@@ -11,6 +12,9 @@ use Mdanter\Ecc\Crypto\Key\PublicKeyInterface;
 class PemPublicKeySerializer implements PublicKeySerializerInterface
 {
 
+    /**
+     * @var DerPublicKeySerializer
+     */
     private $derSerializer;
 
     /**
@@ -22,12 +26,10 @@ class PemPublicKeySerializer implements PublicKeySerializerInterface
     }
 
     /**
-     *
-     * @param  PublicKeyInterface $key
      * {@inheritDoc}
      * @see \Mdanter\Ecc\Serializer\PublicKey\PublicKeySerializerInterface::serialize()
      */
-    public function serialize(PublicKeyInterface $key)
+    public function serialize(PublicKeyInterface $key): string
     {
         $publicKeyInfo = $this->derSerializer->serialize($key);
 
@@ -42,11 +44,11 @@ class PemPublicKeySerializer implements PublicKeySerializerInterface
      * {@inheritDoc}
      * @see \Mdanter\Ecc\Serializer\PublicKey\PublicKeySerializerInterface::parse()
      */
-    public function parse($formattedKey)
+    public function parse(string $formattedKey): PublicKeyInterface
     {
         $formattedKey = str_replace('-----BEGIN PUBLIC KEY-----', '', $formattedKey);
         $formattedKey = str_replace('-----END PUBLIC KEY-----', '', $formattedKey);
-
+        
         $data = base64_decode($formattedKey);
 
         return $this->derSerializer->parse($data);

@@ -1,12 +1,12 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Mdanter\Ecc\Crypto\Signature;
 
-use Mdanter\Ecc\Math\MathAdapterInterface;
+use Mdanter\Ecc\Math\GmpMathInterface;
 use Mdanter\Ecc\Crypto\Key\PrivateKeyInterface;
 use Mdanter\Ecc\Crypto\Key\PublicKeyInterface;
-use Mdanter\Ecc\Primitives\GeneratorPoint;
-use Mdanter\Ecc\Util\NumberSize;
 use Mdanter\Ecc\Util\BinaryString;
 
 class Signer
@@ -14,59 +14,26 @@ class Signer
 
     /**
      *
-     * @var MathAdapterInterface
+     * @var GmpMathInterface
      */
     private $adapter;
 
     /**
      *
-     * @param MathAdapterInterface $adapter
+     * @param GmpMathInterface $adapter
      */
-    public function __construct(MathAdapterInterface $adapter)
+    public function __construct(GmpMathInterface $adapter)
     {
         $this->adapter = $adapter;
     }
 
     /**
-     * @param GeneratorPoint $G
-     * @param $hash
-     * @return int|string
-     */
-    public function truncateHash(GeneratorPoint $G, $hash)
-    {
-        $hexSize = strlen($this->adapter->decHex($hash));
-        $hashBits = $this->adapter->baseConvert($hash, 10, 2);
-        if (strlen($hashBits) < $hexSize * 4) {
-            $hashBits = str_pad($hashBits, $hexSize * 4, '0', STR_PAD_LEFT);
-        }
-
-        $messageHash = $this->adapter->baseConvert(substr($hashBits, 0, NumberSize::bnNumBits($this->adapter, $G->getOrder())), 2, 10);
-        return $messageHash;
-    }
-
-    /**
-     * @param GeneratorPoint $G
-     * @param string $algorithm
-     * @param string $data
-     * @return int|string
-     */
-    public function hashData(GeneratorPoint $G, $algorithm, $data)
-    {
-        if (!in_array($algorithm, hash_algos())) {
-            throw new \InvalidArgumentException('Unsupported hashing algorithm');
-        }
-
-        $hash = $this->adapter->hexDec(hash($algorithm, $data, false));
-        return $this->truncateHash($G, $hash);
-    }
-
-    /**
      * @param PrivateKeyInterface $key
-     * @param $hash
-     * @param $randomK
-     * @return Signature
+     * @param \GMP $truncatedHash - hash truncated for use in ECDSA
+     * @param \GMP $randomK
+     * @return SignatureInterface
      */
-    public function sign(PrivateKeyInterface $key, $hash, $randomK)
+    public function sign(PrivateKeyInterface $key, \GMP $truncatedHash, \GMP $randomK): SignatureInterface
     {
         $math = $this->adapter;
         $generator = $key->getPoint();
@@ -75,13 +42,13 @@ class Signer
         $k = $math->mod($randomK, $generator->getOrder());
         $p1 = $generator->mul($k);
         $r = $p1->getX();
-        if ($math->cmp($r, 0) == 0) {
+        $zero = gmp_init(0, 10);
+        if ($math->equals($r, $zero)) {
             throw new \RuntimeException("Error: random number R = 0");
         }
 
-        $hash = $this->truncateHash($generator, $hash);
-        $s = $modMath->div($modMath->add($hash, $math->mul($key->getSecret(), $r)), $k);
-        if ($math->cmp($s, 0) == 0) {
+        $s = $modMath->div($modMath->add($truncatedHash, $math->mul($key->getSecret(), $r)), $k);
+        if ($math->equals($s, $zero)) {
             throw new \RuntimeException("Error: random number S = 0");
         }
 
@@ -91,23 +58,23 @@ class Signer
     /**
      * @param PublicKeyInterface $key
      * @param SignatureInterface $signature
-     * @param $hash
+     * @param \GMP $hash
      * @return bool
      */
-    public function verify(PublicKeyInterface $key, SignatureInterface $signature, $hash)
+    public function verify(PublicKeyInterface $key, SignatureInterface $signature, \GMP $hash): bool
     {
         $generator = $key->getGenerator();
         $n = $generator->getOrder();
-        $point = $key->getPoint();
         $r = $signature->getR();
         $s = $signature->getS();
 
         $math = $this->adapter;
-        if ($math->cmp($r, 1) < 1 || $math->cmp($r, $math->sub($n, 1)) > 0) {
+        $one = gmp_init(1, 10);
+        if ($math->cmp($r, $one) < 1 || $math->cmp($r, $math->sub($n, $one)) > 0) {
             return false;
         }
 
-        if ($math->cmp($s, 1) < 1 || $math->cmp($s, $math->sub($n, 1)) > 0) {
+        if ($math->cmp($s, $one) < 1 || $math->cmp($s, $math->sub($n, $one)) > 0) {
             return false;
         }
 
@@ -115,9 +82,9 @@ class Signer
         $c = $math->inverseMod($s, $n);
         $u1 = $modMath->mul($hash, $c);
         $u2 = $modMath->mul($r, $c);
-        $xy = $generator->mul($u1)->add($point->mul($u2));
+        $xy = $generator->mul($u1)->add($key->getPoint()->mul($u2));
         $v = $math->mod($xy->getX(), $n);
 
-        return BinaryString::constantTimeCompare($v, $r);
+        return BinaryString::constantTimeCompare($math->toString($v), $math->toString($r));
     }
 }

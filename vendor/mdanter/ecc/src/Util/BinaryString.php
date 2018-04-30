@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 
 namespace Mdanter\Ecc\Util;
 
@@ -10,7 +11,7 @@ class BinaryString
      * @param string $str
      * @return int
      */
-    public static function length($str)
+    public static function length(string $str): int
     {
         // Premature optimization: cache the function_exists() result
         static $exists = null;
@@ -33,7 +34,7 @@ class BinaryString
      * @param int $length (optional)
      * @return string
      */
-    public static function substring($str, $start = 0, $length = null)
+    public static function substring(string $str, int $start = 0, int $length = null): string
     {
         // Premature optimization: cache the function_exists() result
         static $exists = null;
@@ -51,30 +52,15 @@ class BinaryString
     }
     
     /**
-     * Equivalent to hash_equals() in PHP 5.6 
-     * 
+     * Equivalent to hash_equals() in PHP 5.6
+     *
      * @param string $knownString
      * @param string $userString
-     * 
+     *
      * @return bool
      */
-    public static function constantTimeCompare($knownString, $userString)
+    public static function constantTimeCompare(string $knownString, string $userString): bool
     {
-        if (PHP_VERSION_ID >= 50600) {
-            return hash_equals($knownString, $userString);
-        }
-        
-        // We have to roll our own
-        $kLen = self::length($knownString);
-        $uLen = self::length($userString);
-        if ($kLen !== $uLen) {
-            return false;
-        }
-        $result = 0;
-        for ($i = 0; $i < $kLen; $i++) {
-            $result |= (ord($knownString[$i]) ^ ord($userString[$i]));
-        }
-        // They are only identical strings if $result is exactly 0...
-        return 0 === $result;
+        return hash_equals($knownString, $userString);
     }
 }

@@ -1,35 +1,35 @@
 <?php
+declare(strict_types=1);
 
 namespace Mdanter\Ecc\Curves;
 
+use Mdanter\Ecc\Math\GmpMathInterface;
 use Mdanter\Ecc\Primitives\CurveFp;
-use Mdanter\Ecc\Math\MathAdapterInterface;
+use Mdanter\Ecc\Primitives\CurveParameters;
 
 class NamedCurveFp extends CurveFp
 {
     /**
-     * @var int|string
+     * @var string
      */
     private $name;
 
     /**
-     * @param int|string           $name
-     * @param int|string           $prime
-     * @param int|string           $a
-     * @param MathAdapterInterface $b
-     * @param MathAdapterInterface $adapter
+     * @param string           $name
+     * @param CurveParameters  $parameters
+     * @param GmpMathInterface $adapter
      */
-    public function __construct($name, $prime, $a, $b, MathAdapterInterface $adapter)
+    public function __construct(string $name, CurveParameters $parameters, GmpMathInterface $adapter)
     {
         $this->name = $name;
 
-        parent::__construct($prime, $a, $b, $adapter);
+        parent::__construct($parameters, $adapter);
     }
 
     /**
-     * @return int|string
+     * @return string
      */
-    public function getName()
+    public function getName(): string
     {
         return $this->name;
     }

@@ -20,6 +20,7 @@ class IdentityProviderGRPCClient
     {
         $this->default_timeout = $default_timeout * 1000; // Microseconds
         $opts = $this->get_client_options($scope);
+        $opts['timeout'] = $default_timeout;
         $this->client = new \Sso\V1\IdentityProviderClient($hostname, $opts);
     }
 
@@ -29,10 +30,10 @@ class IdentityProviderGRPCClient
 
         $opts = [
             'credentials' => \Grpc\ChannelCredentials::createSsl(),
-            'update_metadata' => function () use ($auth) {
+            'update_metadata' => function ($metadata) use ($auth) {
                 $result = $auth->fetchAuthToken();
                 $metadata_copy = $metadata;
-                $metadata_copy[$auth::AUTH_METADATA_KEY] = array('Bearer ' . $result);
+                $metadata_copy['authorization'] = array('Bearer ' . $result);
                 return $metadata_copy;
             },
         ];
@@ -53,7 +54,7 @@ class IdentityProviderGRPCClient
         $req->setServiceProviderId($service_provider_id);
         $service_context = $this->buildContext($b64_str_service_context);
         $req->setContext($service_context);
-        list($response, $status) = $this->client->getEntryURL($req, ['timeout' => $this->default_timeout])->wait();
+        list($response, $status) = $this->client->getEntryURL($req)->wait();
         if ($status->code) {
             throw new SDKException($status->details);
         }
@@ -85,7 +86,7 @@ class IdentityProviderGRPCClient
         if ($next_url) {
             $req->setNextUrl($next_url);
         }
-        list($response, $status) = $this->client->getEntryURLWithCode($req, ['timeout' => $this->default_timeout])->wait();
+        list($response, $status) = $this->client->getEntryURLWithCode($req)->wait();
         if ($status->code) {
             throw new SDKException($status->details);
         }
@@ -100,7 +101,7 @@ class IdentityProviderGRPCClient
     {
         $req = new \Sso\V1\LogoutRequest();
         $req->setSessionId($session_id);
-        list($response, $status) = $this->client->logout($req, ['timeout' => $this->default_timeout])->wait();
+        list($response, $status) = $this->client->logout($req)->wait();
         if ($status->code) {
             throw new SDKException($status->details);
         }

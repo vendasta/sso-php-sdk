@@ -1,13 +1,13 @@
 <?php
 use PHPUnit\Framework\TestCase;
 
-final class IdentityProviderClientTest extends TestCase{
+final class IdentityProviderJSONClientTest extends TestCase{
     private static $client;
 
     public static function setUpBeforeClass() {
         $hostname = 'sso-api-test.vendasta-internal.com';
         $scope = 'https://sso-api-test.vendasta-internal.com';
-        self::$client = new Vendasta\Sso\V1\IdentityProviderClient($hostname, $scope);
+        self::$client = new Vendasta\Sso\V1\IdentityProviderJSONClient($hostname, $scope);
     }
     
     public function testGetEntryURL(): void {

@@ -59,7 +59,7 @@ class VendastaCredentialsManager
         };
     }
 
-    private function fetchAuthToken() {
+    public function fetchAuthToken() {
         $token = $this->buildJWT();
 
         $response = $this->client->request(

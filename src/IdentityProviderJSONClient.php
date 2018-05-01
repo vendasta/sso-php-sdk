@@ -25,10 +25,19 @@ class IdentityProviderJSONClient
         $this->hostname = $hostname;
         $this->default_timeout = $default_timeout;
 
-        $middleware = new VendastaCredentialsManager();
+        function authMiddleware() {
+            $auth = new Auth\FetchAuthTokenCache(new Auth\FetchVendastaAuthToken());
+            return function (callable $handler) use ($auth)
+            {
+                return function (\Psr\Http\Message\RequestInterface $request, array $options) use ($handler, $auth) {
+                    $request = $request->withHeader('authorization', 'Bearer ' . $auth->fetchToken());
+                    return $handler($request, $options);
+                };
+            };
+        }
 
         $stack = HandlerStack::create();
-        $stack->push($middleware);
+        $stack->push(authMiddleware());
 
         $this->client = new Client([
             'handler' => $stack,

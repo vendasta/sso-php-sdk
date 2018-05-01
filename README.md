@@ -77,3 +77,14 @@ The `Service Context` is a little bit harder to explain, but the concept is simp
 However, if you are using JiT IAM, you _must_ parse the service context and do access checks as a part of your SSO flow. 
 
 _TODO: Link to a more in depth article on service context instructions._
+
+## Development Notes
+
+### Tests
+
+To run the integration test suite, you must first set your credentials environment variable, then you can run phpunit directly from the vendor folder:
+
+```bash
+export VENDASTA_APPLICATION_CREDENTIALS=<path to credentials.json>
+./vendor/bin/phpunit --bootstrap vendor/autoload.php test
+```

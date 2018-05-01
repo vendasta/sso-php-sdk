@@ -1,5 +1,5 @@
 <?php
-namespace Vendasta\Sso\V1;
+namespace Vendasta\Sso\V1\Auth;
 
 use GuzzleHttp\Client;
 use Mdanter\Ecc\Crypto\Signature\SignHasher;
@@ -10,7 +10,7 @@ use Mdanter\Ecc\Serializer\PrivateKey\DerPrivateKeySerializer;
 use Mdanter\Ecc\Crypto\Signature\Signature;
 use Mdanter\Ecc\Random\RandomGeneratorFactory;
 
-class VendastaCredentialsManager
+class FetchVendastaAuthToken implements FetchAuthToken
 {
     private $token_uri;
     private $key;
@@ -51,15 +51,7 @@ class VendastaCredentialsManager
         ]);
     }
 
-    public function __invoke(callable $handler)
-    {
-        return function (\Psr\Http\Message\RequestInterface $request, array $options) use ($handler) {
-            $request = $request->withHeader('authorization', 'Bearer ' . $this->fetchAuthToken());
-            return $handler($request, $options);
-        };
-    }
-
-    public function fetchAuthToken() {
+    public function fetchToken():string {
         $token = $this->buildJWT();
 
         $response = $this->client->request(

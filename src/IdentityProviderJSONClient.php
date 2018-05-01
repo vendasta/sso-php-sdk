@@ -31,13 +31,27 @@ class IdentityProviderJSONClient
             {
                 return function (\Psr\Http\Message\RequestInterface $request, array $options) use ($handler, $auth) {
                     $request = $request->withHeader('authorization', 'Bearer ' . $auth->fetchToken());
-                    return $handler($request, $options);
+                    $promise = $handler($request, $options);
+                    return $promise->then(
+                        function (\Psr\Http\Message\ResponseInterface $response) use ($auth) {
+                            if ($response->getStatusCode() == 401) {
+                                $auth->invalidateToken();
+                            }
+                            return $response;
+                        }
+                    );
                 };
             };
         }
 
         $stack = HandlerStack::create();
-        $stack->push(authMiddleware());
+        $stack->push(\GuzzleHttp\Middleware::retry(function($retry, $request, $value, $reason) {
+            if ($value !== NULL) {
+              return FALSE;
+            }
+            return $retry < 10;
+          }));
+        $stack->push(authMiddleware());          
 
         $this->client = new Client([
             'handler' => $stack,

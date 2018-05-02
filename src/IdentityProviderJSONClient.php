@@ -25,34 +25,8 @@ class IdentityProviderJSONClient
         $this->hostname = $hostname;
         $this->default_timeout = $default_timeout;
 
-        function authMiddleware() {
-            $auth = new Auth\FetchAuthTokenCache(new Auth\FetchVendastaAuthToken());
-            return function (callable $handler) use ($auth)
-            {
-                return function (\Psr\Http\Message\RequestInterface $request, array $options) use ($handler, $auth) {
-                    $request = $request->withHeader('authorization', 'Bearer ' . $auth->fetchToken());
-                    $promise = $handler($request, $options);
-                    return $promise->then(
-                        function (\Psr\Http\Message\ResponseInterface $response) use ($auth) {
-                            if ($response->getStatusCode() == 401) {
-                                $auth->invalidateToken();
-                            }
-                            return $response;
-                        }
-                    );
-                };
-            };
-        }
-
         $stack = HandlerStack::create();
-        $stack->push(\GuzzleHttp\Middleware::retry(function($retry, $request, $value, $reason) {
-            if ($value !== NULL) {
-              return FALSE;
-            }
-            return $retry < 10;
-          }));
-        $stack->push(authMiddleware());          
-
+        $this->addHandlerMiddleware($stack);
         $this->client = new Client([
             'handler' => $stack,
             'timeout' => $default_timeout / 1000,
@@ -134,6 +108,35 @@ class IdentityProviderJSONClient
                 ],
             ]
         );
+    }
+
+    protected function addHandlerMiddleware(HandlerStack $stack) {
+        function authMiddleware() {
+            $auth = new Auth\FetchAuthTokenCache(new Auth\FetchVendastaAuthToken());
+            return function (callable $handler) use ($auth)
+            {
+                return function (\Psr\Http\Message\RequestInterface $request, array $options) use ($handler, $auth) {
+                    $request = $request->withHeader('authorization', 'Bearer ' . $auth->fetchToken());
+                    $promise = $handler($request, $options);
+                    return $promise->then(
+                        function (\Psr\Http\Message\ResponseInterface $response) use ($auth) {
+                            if ($response->getStatusCode() == 401) {
+                                $auth->invalidateToken();
+                            }
+                            return $response;
+                        }
+                    );
+                };
+            };
+        }
+
+        $stack->push(\GuzzleHttp\Middleware::retry(function($retry, $request, $value, $reason) {
+            if ($value !== NULL) {
+              return FALSE;
+            }
+            return $retry < 10;
+          }));
+        $stack->push(authMiddleware());          
     }
 
     private function buildContext($b64_str_service_context)

@@ -1,7 +1,7 @@
 <?php
 use PHPUnit\Framework\TestCase;
 
-final class IdentityProviderJSONClientTest extends TestCase{
+final class IdentityProviderJSONClientTest extends TestCase {
     private static $client;
 
     public static function setUpBeforeClass() {

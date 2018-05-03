@@ -33,7 +33,7 @@ class IdentityProviderGRPCClient
             'update_metadata' => function ($metadata) use ($auth) {
                 $result = $auth->fetchToken();
                 $metadata_copy = $metadata;
-                // $metadata_copy['authorization'] = array('Bearer ' . $result);
+                $metadata_copy['authorization'] = array('Bearer ' . $result);
                 return $metadata_copy;
             },
         ];

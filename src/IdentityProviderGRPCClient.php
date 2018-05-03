@@ -33,7 +33,7 @@ class IdentityProviderGRPCClient
             'update_metadata' => function ($metadata) use ($auth) {
                 $result = $auth->fetchToken();
                 $metadata_copy = $metadata;
-                $metadata_copy['authorization'] = array('Bearer ' . $result);
+                // $metadata_copy['authorization'] = array('Bearer ' . $result);
                 return $metadata_copy;
             },
         ];
@@ -56,7 +56,14 @@ class IdentityProviderGRPCClient
         $req->setContext($service_context);
         list($response, $status) = $this->client->getEntryURL($req)->wait();
         if ($status->code) {
-            throw new SDKException($status->details);
+            if ($status->code == 16) {
+                list($response, $status) = $this->client->getEntryURL($req)->wait();
+                if ($status->code) {
+                    throw new SDKException($status->details);                    
+                }
+            } else {
+                throw new SDKException($status->details);
+            }
         }
         return $response->getEntryUrl();
     }
@@ -88,7 +95,14 @@ class IdentityProviderGRPCClient
         }
         list($response, $status) = $this->client->getEntryURLWithCode($req)->wait();
         if ($status->code) {
-            throw new SDKException($status->details);
+            if ($status->code == 16) {
+                list($response, $status) = $this->client->getEntryURLWithCode($req)->wait();
+                if ($status->code) {
+                    throw new SDKException($status->details);                
+                }
+            } else {
+                throw new SDKException($status->details);
+            }
         }
         return $response->getEntryUrl();
     }
@@ -103,7 +117,14 @@ class IdentityProviderGRPCClient
         $req->setSessionId($session_id);
         list($response, $status) = $this->client->logout($req)->wait();
         if ($status->code) {
-            throw new SDKException($status->details);
+            if ($status->code == 16) {
+                list($response, $status) = $this->client->logout($req)->wait();      
+                if ($status->code) {
+                    throw new SDKException($status->details);                    
+                }          
+            } else {
+                throw new SDKException($status->details);
+            }
         }
     }
 

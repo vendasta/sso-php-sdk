@@ -10,6 +10,7 @@ class IdentityProviderGRPCClient
 
     private $default_timeout;
     private $client;
+    private $auth;
 
     /**
      * @param string $hostname provided by Vendasta
@@ -19,15 +20,14 @@ class IdentityProviderGRPCClient
     public function __construct($hostname, $scope, $default_timeout = 10000)
     {
         $this->default_timeout = $default_timeout * 1000; // Microseconds
-        $opts = $this->get_client_options($scope);
+        $this->auth = new Auth\FetchAuthTokenCache(new Auth\FetchVendastaAuthToken());        
+        $opts = $this->get_client_options($this->auth, $scope);
         $opts['timeout'] = $default_timeout;
         $this->client = new \Sso\V1\IdentityProviderClient($hostname, $opts);
     }
 
-    protected function get_client_options($scope)
+    protected function get_client_options($auth, $scope)
     {
-        $auth = new Auth\FetchAuthTokenCache(new Auth\FetchVendastaAuthToken());
-
         $opts = [
             'credentials' => \Grpc\ChannelCredentials::createSsl(),
             'update_metadata' => function ($metadata) use ($auth) {
@@ -57,6 +57,7 @@ class IdentityProviderGRPCClient
         list($response, $status) = $this->client->getEntryURL($req)->wait();
         if ($status->code) {
             if ($status->code == 16) {
+                $this->auth->invalidateToken();
                 list($response, $status) = $this->client->getEntryURL($req)->wait();
                 if ($status->code) {
                     throw new SDKException($status->details);                    
@@ -96,6 +97,7 @@ class IdentityProviderGRPCClient
         list($response, $status) = $this->client->getEntryURLWithCode($req)->wait();
         if ($status->code) {
             if ($status->code == 16) {
+                $this->auth->invalidateToken();                
                 list($response, $status) = $this->client->getEntryURLWithCode($req)->wait();
                 if ($status->code) {
                     throw new SDKException($status->details);                
@@ -118,6 +120,7 @@ class IdentityProviderGRPCClient
         list($response, $status) = $this->client->logout($req)->wait();
         if ($status->code) {
             if ($status->code == 16) {
+                $this->auth->invalidateToken();                
                 list($response, $status) = $this->client->logout($req)->wait();      
                 if ($status->code) {
                     throw new SDKException($status->details);                    

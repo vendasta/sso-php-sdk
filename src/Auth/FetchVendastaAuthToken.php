@@ -69,6 +69,10 @@ class FetchVendastaAuthToken implements FetchAuthToken
         return $json_body->token;
     }
 
+    public function invalidateToken() {
+        
+    }
+
     private function buildJWT() {
         $now = time();
 

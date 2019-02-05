@@ -1,0 +1,5 @@
+services:
+ - name: sso-php-sdk
+   owner: no-owner
+   language: php
+   nonServiceType: library
